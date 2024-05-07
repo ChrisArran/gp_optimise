@@ -47,11 +47,12 @@ class Gp_optimise:
 
 		self.X = self.create_Xgrid(Ninitial)
 		self.y = np.zeros((Ninitial))
+		self.yerr = np.zeros((Ninitial))
 				
 		for n in range(Ninitial):
-			self.y[n] = self.fun(self.X[n,:])
+			self.y[n],self.yerr[n] = self.fun(self.X[n,:])
 			
-		self.gaussian_process = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts, normalize_y=True)
+		self.gaussian_process = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts, normalize_y=True, alpha=self.yerr**2)
 		self.gaussian_process.fit(self.X, self.y)
 		
 
@@ -111,12 +112,15 @@ class Gp_optimise:
 		sz = np.shape(self.X)
 		self.X = np.resize(self.X,(sz[0]+N,sz[1]))
 		self.y = np.resize(self.y,(sz[0]+N))
+		self.yerr = np.resize(self.yerr,(sz[0]+N))
 		
 		for n in range(N):
 			X_new = self.next_acquisition(Nacq=Nacq,explore=1,acq_fn='UCB')
-			y_new = self.fun(X_new)
+			y_new,yerr_new = self.fun(X_new)
 			self.X[sz[0]+n,:] = X_new
 			self.y[sz[0]+n] = y_new
+			self.yerr[sz[0]+n] = yerr_new
+			self.gaussian_process.alpha = self.yerr[:sz[0]+n+1]**2
 			self.gaussian_process.fit(self.X[:sz[0]+n+1,:],self.y[:sz[0]+n+1])
 			
 			
