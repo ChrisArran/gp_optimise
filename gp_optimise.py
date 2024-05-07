@@ -40,9 +40,9 @@ class Gp_optimise:
 		return X
 		
 
-	def initialise(self,Ninitial=100,n_restarts=10):
+	def initialise(self,Ninitial=10,n_restarts=10):
 	# Initialises a Gaussian Process Regressor
-	# 	Ninitial is the number of initial measurements to build the regressor with
+	# 	Ninitial is the number of initial measurement points to build the regressor with
 	#	n_restarts is the number of times to restart the GPR optimiser
 
 		self.X = self.create_Xgrid(Ninitial)
@@ -57,6 +57,7 @@ class Gp_optimise:
 
 	def acquisition_function(self,X_acq,explore=1.0,acq_fn='UCB'):
 	# Returns the chosen acquisition function for finding the next place to sample
+	# Thanks to Martin Krasser at krasserm.github.io
 	#	X_acq is the place to calculate the acquisition function
 	#	explore describes the amount the algorithm should weight exploration over optimisation
 	#	model describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
@@ -78,13 +79,13 @@ class Gp_optimise:
 		return acq
 
 
-	def next_acquisition(self,N_acq=10,explore=1.0,acq_fn='UCB'):
+	def next_acquisition(self,Nacq=10,explore=1.0,acq_fn='UCB'):
 	# Finds the next place to acquire with an option for what acquisition function to use
-	#	N_acq is the number of places the algorithm starts from to choose the best next place
+	#	Nacq is the number of places the algorithm starts from to choose the best next place
 	# 	explore describes the amount the algorithm should weight exploration over optimisation
 	#	model describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 	
-		X_start = self.create_Xgrid(N_acq)
+		X_start = self.create_Xgrid(Nacq)
 		bounds = []
 		for d in self.dims:
 			bounds.append((d['min'],d['max']))
@@ -93,6 +94,7 @@ class Gp_optimise:
 			return -self.acquisition_function(X_acq.reshape(1,-1),explore=explore,acq_fn=acq_fn)
 		
 		min_val = min_acq_fn(X_start[0])
+		min_x = X_start[0]
 		for x0 in X_start:
 			res = minimize(min_acq_fn, x0=x0, bounds=bounds, method='L-BFGS-B')
 			if res.fun < min_val:
@@ -102,7 +104,7 @@ class Gp_optimise:
 		return min_x.reshape(1,-1)
 
 			
-	def optimise(self,N,N_acq=10,explore=1,acq_fn='UCB'):
+	def optimise(self,N,Nacq=10,explore=1,acq_fn='UCB'):
 	# Iteratively improve the GPR using measurements in a place chosen by the acquisition function
 	#	N gives the number of iterations to use
 		
@@ -111,7 +113,7 @@ class Gp_optimise:
 		self.y = np.resize(self.y,(sz[0]+N))
 		
 		for n in range(N):
-			X_new = self.next_acquisition(N_acq=10,explore=1,acq_fn='UCB')
+			X_new = self.next_acquisition(Nacq=Nacq,explore=1,acq_fn='UCB')
 			y_new = self.fun(X_new)
 			self.X[sz[0]+n,:] = X_new
 			self.y[sz[0]+n] = y_new
