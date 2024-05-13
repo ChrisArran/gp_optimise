@@ -28,7 +28,8 @@ class Gp_optimise:
 	def create_Xgrid(self,N):
 	# Create a list of points randomly along each of dims according to given distributions
 	# X is the real space point, Xnorm is the cdf, so uniform and normalised to 0<=Xnorm<=1
-		X = Xnorm = np.zeros((N,len(self.dims)))
+		X = np.zeros((N,len(self.dims)))
+		Xnorm = np.zeros((N,len(self.dims)))
 		for i,d in enumerate(self.dims):
 			if d['type'] == 'uniform':
 				X[:,i] = uniform.rvs(loc=d['min'],scale=d['max']-d['min'],size=N)
@@ -128,7 +129,7 @@ class Gp_optimise:
 		
 		min_val = min_acq_fn(Xnorm_start[0,:])
 		min_x = Xnorm_start[0,:]
-		for x0 in X_start:
+		for x0 in Xnorm_start:
 			res = minimize(min_acq_fn, x0=x0, bounds=bounds, method='L-BFGS-B')
 			if res.fun < min_val:
 				min_val = res.fun[0]
@@ -166,14 +167,14 @@ class Gp_optimise:
 		l = len(self.dims)
 		mesh = np.meshgrid(*[np.linspace(0,1,n) for i in range(l)],indexing='ij')
 		Xnorm = np.transpose(np.reshape(mesh,(l,n**l)))
-		X = Xnorm_to_X(Xnorm)
+		X = self.Xnorm_to_X(Xnorm)
 
-		return X,Xnorm
+		return X
 
 	def predict(self,X):
 	# Give the GPR prediction for y and its error
 		
-		Xnorm = X_to_Xnorm(X)
-		y,std = gpo.gaussian_process.predict(X, return_std=True)
+		Xnorm = self.X_to_Xnorm(X)
+		y,std = self.gaussian_process.predict(Xnorm, return_std=True)
 
 		return y,std
