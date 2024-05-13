@@ -160,6 +160,16 @@ class Gp_optimise:
 			self.gaussian_process.alpha = self.yerr[:sz[0]+n+1]**2
 			self.gaussian_process.fit(self.Xnorm[:sz[0]+n+1,:],self.y[:sz[0]+n+1])					
 
+	def uniform_Xgrid(self,n):
+	# Create a list of points uniformly spaced along each of dims with n points in each dimension
+	# X is the real space point, Xnorm is the cdf, so uniform and normalised to 0<=Xnorm<=1
+		l = len(self.dims)
+		mesh = np.meshgrid(*[np.linspace(0,1,n) for i in range(l)],indexing='ij')
+		Xnorm = np.transpose(np.reshape(mesh,(l,n**l)))
+		X = Xnorm_to_X(Xnorm)
+
+		return X,Xnorm
+
 	def predict(self,X):
 	# Give the GPR prediction for y and its error
 		
