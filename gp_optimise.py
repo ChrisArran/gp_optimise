@@ -26,18 +26,50 @@ class Gp_optimise:
 		self.kernel = kernel
 
 	def create_Xgrid(self,N):
-	# Create a list of points randomly along each of dims
-		X = np.zeros((N,len(self.dims)))
+	# Create a list of points randomly along each of dims according to given distributions
+	# X is the real space point, Xnorm is the cdf, so uniform and normalised to 0<=Xnorm<=1
+		X = Xnorm = np.zeros((N,len(self.dims)))
 		for i,d in enumerate(self.dims):
 			if d['type'] == 'uniform':
 				X[:,i] = uniform.rvs(loc=d['min'],scale=d['max']-d['min'],size=N)
+				Xnorm[:,i] = uniform.cdf(X[:,i],loc=d['min'],scale=d['max']-d['min'])
 			elif d['type'] == 'log-uniform':
-				X[:,i] = loguniform.rvs(d['min'],d['max'],size=N)
+				X[:,i] = loguniform.rvs(a=d['min'],b=d['max'],size=N)
+				Xnorm[:,i] = loguniform.cdf(X[:,i],a=d['min'],b=d['max'])
 			elif d['type'] == 'norm':
 				X[:,i] = norm.rvs(loc=d['mean'],scale=d['std'],size=N)
+				Xnorm[:,i] = norm.cdf(X[:,i],loc=d['mean'],scale=d['std'])
+			else:
+				raise Exception('Not a recognised distribution for input dimension %s: %s' % (d['name'],d['type']))
+		return X,Xnorm
+
+	def Xnorm_to_X(self,Xnorm):
+	# Convert from normalised units Xnorm, the cdf, to real space units X
+		X = np.zeros_like(Xnorm)
+		for i,d in enumerate(self.dims):
+			if d['type'] == 'uniform':
+				X[:,i] = uniform.ppf(Xnorm[:,i],loc=d['min'],scale=d['max']-d['min'])
+			elif d['type'] == 'log-uniform':
+				X[:,i] = loguniform.ppf(Xnorm[:,i],a=d['min'],b=d['max'])
+			elif d['type'] == 'norm':
+				X[:,i] = norm.ppf(Xnorm[:,i],loc=d['mean'],scale=d['std'])
 			else:
 				raise Exception('Not a recognised distribution for input dimension %s: %s' % (d['name'],d['type']))
 		return X
+
+	def X_to_Xnorm(self,X):
+	# Convert from real space units X to normalised units, Xnorm, the cdf
+		Xnorm = np.zeros_like(X)
+		for i,d in enumerate(self.dims):
+			if d['type'] == 'uniform':
+				Xnorm[:,i] = uniform.cdf(X[:,i],loc=d['min'],scale=d['max']-d['min'])
+			elif d['type'] == 'log-uniform':
+				Xnorm[:,i] = loguniform.cdf(X[:,i],a=d['min'],b=d['max'])
+			elif d['type'] == 'norm':
+				Xnorm[:,i] = norm.cdf(X[:,i],loc=d['mean'],scale=d['std'])
+			else:
+				raise Exception('Not a recognised distribution for input dimension %s: %s' % (d['name'],d['type']))
+		return Xnorm
 		
 
 	def initialise(self,Ninitial=10,n_restarts=10):
@@ -45,7 +77,7 @@ class Gp_optimise:
 	# 	Ninitial is the number of initial measurement points to build the regressor with
 	#	n_restarts is the number of times to restart the GPR optimiser
 
-		self.X = self.create_Xgrid(Ninitial)
+		self.X,self.Xnorm = self.create_Xgrid(Ninitial)
 		self.y = np.zeros((Ninitial))
 		self.yerr = np.zeros((Ninitial))
 				
@@ -53,23 +85,23 @@ class Gp_optimise:
 			self.y[n],self.yerr[n] = self.fun(self.X[n,:])
 			
 		self.gaussian_process = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts, normalize_y=True, alpha=self.yerr**2)
-		self.gaussian_process.fit(self.X, self.y)
+		self.gaussian_process.fit(self.Xnorm, self.y)
 		
 
-	def acquisition_function(self,X_acq,explore=1.0,acq_fn='UCB'):
+	def acquisition_function(self,Xnorm_acq,explore=1.0,acq_fn='UCB'):
 	# Returns the chosen acquisition function for finding the next place to sample
 	# Thanks to Martin Krasser at krasserm.github.io
-	#	X_acq is the place to calculate the acquisition function
+	#	Xnorm_acq is the place to calculate the acquisition function (in normalised units)
 	#	explore describes the amount the algorithm should weight exploration over optimisation
 	#	model describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 	
-		y_acq,sigma_acq = self.gaussian_process.predict(X_acq, return_std=True)
+		y_acq,sigma_acq = self.gaussian_process.predict(Xnorm_acq, return_std=True)
 		
 		if (acq_fn=='UCB'):	# Maximise upper confidence bound
 			acq = y_acq + explore*sigma_acq
 			
 		elif (acq_fn=='EI'):	# Maximise expected improvement
-			y_exp = self.gaussian_process.predict(self.X)
+			y_exp = self.gaussian_process.predict(self.Xnorm)
 			y_max = np.max(y_exp)
 			
 			imp = y_acq - y_max - explore
@@ -86,7 +118,7 @@ class Gp_optimise:
 	# 	explore describes the amount the algorithm should weight exploration over optimisation
 	#	model describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 	
-		X_start = self.create_Xgrid(Nacq)
+		_,Xnorm_start = self.create_Xgrid(Nacq)
 		bounds = []
 		for d in self.dims:
 			bounds.append((d['min'],d['max']))
@@ -94,15 +126,17 @@ class Gp_optimise:
 		def min_acq_fn(X_acq): # make acquisition function negative to use minimise
 			return -self.acquisition_function(X_acq.reshape(1,-1),explore=explore,acq_fn=acq_fn)
 		
-		min_val = min_acq_fn(X_start[0])
-		min_x = X_start[0]
+		min_val = min_acq_fn(Xnorm_start[0,:])
+		min_x = Xnorm_start[0,:]
 		for x0 in X_start:
 			res = minimize(min_acq_fn, x0=x0, bounds=bounds, method='L-BFGS-B')
 			if res.fun < min_val:
 				min_val = res.fun[0]
 				min_x = res.x
-			
-		return min_x.reshape(1,-1)
+
+		Xnorm_new = min_x.reshape(1,-1)
+
+		return Xnorm_new
 
 			
 	def optimise(self,N,Nacq=10,explore=1,acq_fn='UCB'):
@@ -111,16 +145,25 @@ class Gp_optimise:
 		
 		sz = np.shape(self.X)
 		self.X = np.resize(self.X,(sz[0]+N,sz[1]))
+		self.Xnorm = np.resize(self.Xnorm,(sz[0]+N,sz[1]))
 		self.y = np.resize(self.y,(sz[0]+N))
 		self.yerr = np.resize(self.yerr,(sz[0]+N))
 		
 		for n in range(N):
-			X_new = self.next_acquisition(Nacq=Nacq,explore=1,acq_fn='UCB')
+			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=1,acq_fn='UCB')
+			X_new = self.Xnorm_to_X(Xnorm_new)
 			y_new,yerr_new = self.fun(X_new)
 			self.X[sz[0]+n,:] = X_new
+			self.Xnorm[sz[0]+n,:] = Xnorm_new
 			self.y[sz[0]+n] = y_new
 			self.yerr[sz[0]+n] = yerr_new
 			self.gaussian_process.alpha = self.yerr[:sz[0]+n+1]**2
-			self.gaussian_process.fit(self.X[:sz[0]+n+1,:],self.y[:sz[0]+n+1])
-			
-			
+			self.gaussian_process.fit(self.Xnorm[:sz[0]+n+1,:],self.y[:sz[0]+n+1])					
+
+	def predict(self,X):
+	# Give the GPR prediction for y and its error
+		
+		Xnorm = X_to_Xnorm(X)
+		y,std = gpo.gaussian_process.predict(X, return_std=True)
+
+		return y,std
