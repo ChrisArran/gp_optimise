@@ -7,6 +7,7 @@ from scipy.stats import uniform,loguniform,norm
 from scipy.optimize import minimize
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF,WhiteKernel
+import matplotlib.pyplot as plt
 
 class Gp_optimise:
 
@@ -161,6 +162,13 @@ class Gp_optimise:
 			self.gaussian_process.alpha = self.yerr[:sz[0]+n+1]**2
 			self.gaussian_process.fit(self.Xnorm[:sz[0]+n+1,:],self.y[:sz[0]+n+1])					
 
+	def predict(self,X):
+	# Give the GPR prediction for y and its error		
+		Xnorm = self.X_to_Xnorm(X)
+		y,std = self.gaussian_process.predict(Xnorm, return_std=True)
+
+		return y,std
+
 	def uniform_Xgrid(self,n):
 	# Create a list of points uniformly spaced along each of dims with n points in each dimension
 	# X is the real space point, Xnorm is the cdf, so uniform and normalised to 0<=Xnorm<=1
@@ -171,10 +179,50 @@ class Gp_optimise:
 
 		return X
 
-	def predict(self,X):
-	# Give the GPR prediction for y and its error
-		
-		Xnorm = self.X_to_Xnorm(X)
-		y,std = self.gaussian_process.predict(Xnorm, return_std=True)
+	def mean_predict(self,ax=ax,n=n):
+	# Take mean projections of the model predictions along the given axes with a resolution of n in each dimension
+		Xgrid = self.uniform_Xgrid(n)
+		ygrid,yerrgrid = self.predict(Xgrid)
 
-		return y,std
+		newsz = tuple([n for d in gpo.dims]) # (n,n,...)
+		arrays = tuple([gpo.y,gpo.yerr]) + tuple(self.X.transpose) # (y,yerr,X[:,0],X[:,1],...)
+		ms = [np.mean(np.reshape(array,newsz),axis=ax) for a in arrays]
+
+		return ms
+
+	def slices_plot(self,n,figsize=figsize,figname=figname):
+	# Plot a grid of the model predictions against the data, with a resolution n in each dimension
+		l = len(self.dims)
+		axs = [(a,b) for a in range(l) for b in range(l)]
+		
+		fig = plt.figure(figsize=figsize)
+		for (a,b) in axs:
+			fig.add_subplot(l,l,1+a+b*l) # a is column, b is row
+			if (a==b):
+				ax = tuple(np.setdiff1d(range(l),a)
+				ms = self.mean_predict(ax=ax,n=n) # average to a 1D line
+
+				plt.plot(ms[a+2],ms[0],color='tab:orange')
+				plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
+				plt.errorbar(gpo.X[:,a],gpo.y,gpo.yerr,marker='o',linestyle='')
+			else:
+				ax = tuple(np.setdiff1d(range(l),(a,b))
+				ms = self.mean_predict(ax=ax,n=n) # average to a 2D slice
+
+				plt.contourf(ms[a+2],ms[b+2],mean01_y)
+				plt.scatter(gpo.X[:,a],gpo.X[:,b],c=gpo.y,marker='o',edgecolors='black')
+
+			if self.dims[a]['type'] == 'log-uniform':
+				plt.xscale('log')
+			if self.dims[b]['type'] == 'log-uniform':
+				plt.yscale('log')
+			if (a==0 and b>0):
+				plt.ylabel(self.dims[b-1]['name'])
+			if (b==l-1 and a<l-1):
+				plt.xlabel(self.dims[b-1]['name'])
+
+		if figname is not None:
+			plt.savefig(figname)
+		plt.show()
+			
+
