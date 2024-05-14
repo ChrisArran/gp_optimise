@@ -179,47 +179,50 @@ class Gp_optimise:
 
 		return X
 
-	def mean_predict(self,ax=ax,n=n):
+	def mean_predict(self,ax,n):
 	# Take mean projections of the model predictions along the given axes with a resolution of n in each dimension
 		Xgrid = self.uniform_Xgrid(n)
 		ygrid,yerrgrid = self.predict(Xgrid)
 
-		newsz = tuple([n for d in gpo.dims]) # (n,n,...)
-		arrays = tuple([gpo.y,gpo.yerr]) + tuple(self.X.transpose) # (y,yerr,X[:,0],X[:,1],...)
-		ms = [np.mean(np.reshape(array,newsz),axis=ax) for a in arrays]
+		newsz = tuple([n for d in self.dims]) # (n,n,...)
+		arrays = tuple([ygrid,yerrgrid]) + tuple(np.transpose(Xgrid)) # (y,yerr,X[:,0],X[:,1],...)
+		ms = [np.mean(np.reshape(a,newsz),axis=ax) for a in arrays]
 
 		return ms
 
-	def slices_plot(self,n,figsize=figsize,figname=figname):
-	# Plot a grid of the model predictions against the data, with a resolution n in each dimension
+	def mean_slices_plot(self,n,figsize=None,figname=None):
+	# Plot a grid of projections of the mean model predictions against the data, with a resolution n in each dimension
 		l = len(self.dims)
-		axs = [(a,b) for a in range(l) for b in range(l)]
-		
+		if figsize is None:
+			figsize = (4*l,4*l)
 		fig = plt.figure(figsize=figsize)
+
+		axs = [(a,b) for a in range(l) for b in range(l)]		
 		for (a,b) in axs:
 			fig.add_subplot(l,l,1+a+b*l) # a is column, b is row
-			if (a==b):
-				ax = tuple(np.setdiff1d(range(l),a)
-				ms = self.mean_predict(ax=ax,n=n) # average to a 1D line
-
-				plt.plot(ms[a+2],ms[0],color='tab:orange')
-				plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
-				plt.errorbar(gpo.X[:,a],gpo.y,gpo.yerr,marker='o',linestyle='')
-			else:
-				ax = tuple(np.setdiff1d(range(l),(a,b))
-				ms = self.mean_predict(ax=ax,n=n) # average to a 2D slice
-
-				plt.contourf(ms[a+2],ms[b+2],mean01_y)
-				plt.scatter(gpo.X[:,a],gpo.X[:,b],c=gpo.y,marker='o',edgecolors='black')
-
 			if self.dims[a]['type'] == 'log-uniform':
 				plt.xscale('log')
 			if self.dims[b]['type'] == 'log-uniform':
 				plt.yscale('log')
 			if (a==0 and b>0):
-				plt.ylabel(self.dims[b-1]['name'])
-			if (b==l-1 and a<l-1):
-				plt.xlabel(self.dims[b-1]['name'])
+				plt.ylabel(self.dims[b]['name'])
+			if (b==l-1):
+				plt.xlabel(self.dims[a]['name'])
+
+			if (a==b):
+				ax = tuple( np.setdiff1d(range(l),a) )
+				ms = self.mean_predict(ax=ax,n=n) # average to a 1D line
+
+				plt.plot(ms[a+2],ms[0],color='tab:orange')
+				plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
+				plt.errorbar(self.X[:,a],self.y,self.yerr,marker='o',linestyle='',markersize=4)
+				plt.yscale('linear')
+			else:
+				ax = tuple( np.setdiff1d(range(l),(a,b)) )
+				ms = self.mean_predict(ax=ax,n=n) # average to a 2D slice
+
+				plt.contourf(ms[a+2],ms[b+2],ms[0])
+				plt.scatter(self.X[:,a],self.X[:,b],c=self.y,marker='o',edgecolors='black',s=20)
 
 		if figname is not None:
 			plt.savefig(figname)
