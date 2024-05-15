@@ -29,6 +29,8 @@ class Gp_optimise:
 	def create_Xgrid(self,N):
 	# Create a list of points randomly along each of dims according to given distributions
 	# X is the real space point, Xnorm is the cdf, so uniform and normalised to 0<=Xnorm<=1
+	#	N is the number of points to create
+
 		X = np.zeros((N,len(self.dims)))
 		Xnorm = np.zeros((N,len(self.dims)))
 		for i,d in enumerate(self.dims):
@@ -47,6 +49,8 @@ class Gp_optimise:
 
 	def Xnorm_to_X(self,Xnorm):
 	# Convert from normalised units Xnorm, the cdf, to real space units X
+	#	Xnorm is the list of points in normalised dimensions
+
 		X = np.zeros_like(Xnorm)
 		for i,d in enumerate(self.dims):
 			if d['type'] == 'uniform':
@@ -61,6 +65,8 @@ class Gp_optimise:
 
 	def X_to_Xnorm(self,X):
 	# Convert from real space units X to normalised units, Xnorm, the cdf
+	#	X is the list of points in real space
+
 		Xnorm = np.zeros_like(X)
 		for i,d in enumerate(self.dims):
 			if d['type'] == 'uniform':
@@ -95,7 +101,7 @@ class Gp_optimise:
 	# Thanks to Martin Krasser at krasserm.github.io
 	#	Xnorm_acq is the place to calculate the acquisition function (in normalised units)
 	#	explore describes the amount the algorithm should weight exploration over optimisation
-	#	model describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
+	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 	
 		y_acq,sigma_acq = self.gaussian_process.predict(Xnorm_acq, return_std=True)
 		
@@ -118,7 +124,8 @@ class Gp_optimise:
 	# Finds the next place to acquire with an option for what acquisition function to use
 	#	Nacq is the number of places the algorithm starts from to choose the best next place
 	# 	explore describes the amount the algorithm should weight exploration over optimisation
-	#	model describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
+	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
+	#	debug prints some extra information on the minimisation
 	
 		_,Xnorm_start = self.create_Xgrid(Nacq)
 		bounds = [(0,1) for d in self.dims] # bounds are for the normalised units
@@ -144,23 +151,30 @@ class Gp_optimise:
 	def optimise(self,N,Nacq=10,explore=1,acq_fn='UCB'):
 	# Iteratively improve the GPR using measurements in a place chosen by the acquisition function
 	#	N gives the number of iterations to use
+	# 	explore describes the amount the algorithm should weight exploration over optimisation
+	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 		
 		sz = np.shape(self.X)
-		self.X.resize(sz[0]+N,sz[1])
-		self.Xnorm.resize(sz[0]+N,sz[1])
-		self.y.resize(sz[0]+N)
-		self.yerr.resize(sz[0]+N)
+		self.X = self.X.resize((sz[0]+N,sz[1]))
+		self.Xnorm = self.Xnorm.resize((sz[0]+N,sz[1]))
+		self.y = self.y.resize((sz[0]+N))
+		self.yerr = self.yerr.resize((sz[0]+N))
 		
 		for n in range(N):
-			self.Xnorm[sz[0]+n,:] = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn)
-			self.X[sz[0]+n,:] = self.Xnorm_to_X(Xnorm_new)
-			self.y[sz[0]+n],self.yerr[sz[0]+n] = self.fun(self.X[sz[0]+n,:])
-
+			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn)
+			X_new = self.Xnorm_to_X(Xnorm_new)
+			y_new,yerr_new = self.fun(X_new[0,:])
+			self.X[sz[0]+n,:] = X_new
+			self.Xnorm[sz[0]+n,:] = Xnorm_new
+			self.y[sz[0]+n] = y_new
+			self.yerr[sz[0]+n] = yerr_new
 			self.gaussian_process.alpha = self.yerr[:sz[0]+n+1]**2
 			self.gaussian_process.fit(self.Xnorm[:sz[0]+n+1,:],self.y[:sz[0]+n+1])					
 
 	def predict(self,X):
-	# Give the GPR prediction for y and its error		
+	# Give the GPR prediction for y and its error	
+	#	X gives the list of points in real space to predict
+
 		Xnorm = self.X_to_Xnorm(X)
 		y,std = self.gaussian_process.predict(Xnorm, return_std=True)
 
@@ -169,6 +183,8 @@ class Gp_optimise:
 	def uniform_Xgrid(self,n):
 	# Create a list of points uniformly spaced along each of dims with n points in each dimension
 	# X is the real space point, Xnorm is the cdf, so uniform and normalised to 0<=Xnorm<=1
+	#	n gives the resolution of the grid in each dimension
+
 		l = len(self.dims)
 		mesh = np.meshgrid(*[np.linspace(0,1,n) for i in range(l)],indexing='ij')
 		Xnorm = np.transpose(np.reshape(mesh,(l,n**l)))
@@ -179,6 +195,10 @@ class Gp_optimise:
 	def mean_predict(self,ax,n,fun=None):
 	# Take mean projections of the model predictions along the given axes with a resolution of n in each dimension
 	# Optionally use a different function, such as the acquisition function
+	#	ax gives the dimensions to grid against, averaging over all the others
+	#	n gives the resolution of the grid in each dimension
+	#	fun gives a different function on X that you want to calculate
+
 		Xgrid = self.uniform_Xgrid(n)
 		if fun is None:
 			ygrid,yerrgrid = self.predict(Xgrid)
@@ -195,6 +215,11 @@ class Gp_optimise:
 
 	def mean_slices_plot(self,n,figsize=None,figname=None,fun=None):
 	# Plot a grid of projections of the mean model predictions against the data, with a resolution n in each dimension
+	# 	n gives the resolution of the grid in each dimension
+	#	figsize gives the figure size in inches
+	# 	figname gives the option of saving the figure with a given name
+	#	fun gives a different function on X that you want to calculate
+
 		l = len(self.dims)
 		if figsize is None:
 			figsize = (4*l,4*l)
