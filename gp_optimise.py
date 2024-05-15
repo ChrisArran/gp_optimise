@@ -114,16 +114,14 @@ class Gp_optimise:
 		return acq
 
 
-	def next_acquisition(self,Nacq=10,explore=1.0,acq_fn='UCB'):
+	def next_acquisition(self,Nacq=10,explore=1.0,acq_fn='UCB',debug = False):
 	# Finds the next place to acquire with an option for what acquisition function to use
 	#	Nacq is the number of places the algorithm starts from to choose the best next place
 	# 	explore describes the amount the algorithm should weight exploration over optimisation
 	#	model describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 	
 		_,Xnorm_start = self.create_Xgrid(Nacq)
-		bounds = []
-		for d in self.dims:
-			bounds.append((d['min'],d['max']))
+		bounds = [(0,1) for d in self.dims] # bounds are for the normalised units
 		
 		def min_acq_fn(X_acq): # make acquisition function negative to use minimise
 			return -self.acquisition_function(X_acq.reshape(1,-1),explore=explore,acq_fn=acq_fn)
@@ -132,7 +130,9 @@ class Gp_optimise:
 		min_x = Xnorm_start[0,:]
 		for x0 in Xnorm_start:
 			res = minimize(min_acq_fn, x0=x0, bounds=bounds, method='L-BFGS-B')
-			if res.fun < min_val:
+			if debug: print('DEBUG: Starting from ',x0,',ending at ',res.x, ' with ',res.fun[0])
+			if (res.fun < min_val):
+				if debug: print('DEBUG: Replacing previous minimum: ', res.fun[0],'<',min_val)
 				min_val = res.fun[0]
 				min_x = res.x
 
