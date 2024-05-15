@@ -155,10 +155,10 @@ class Gp_optimise:
 	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 		
 		sz = np.shape(self.X)
-		self.X = self.X.resize((sz[0]+N,sz[1]))
-		self.Xnorm = self.Xnorm.resize((sz[0]+N,sz[1]))
-		self.y = self.y.resize((sz[0]+N))
-		self.yerr = self.yerr.resize((sz[0]+N))
+		self.X = np.pad(self.X,((0,N),(0,0)))
+		self.Xnorm = np.pad(self.Xnorm,((0,N),(0,0)))
+		self.y = np.pad(self.y,(0,N))
+		self.yerr = np.pad(self.y,(0,N))
 		
 		for n in range(N):
 			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn)
