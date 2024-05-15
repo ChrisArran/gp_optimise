@@ -146,19 +146,16 @@ class Gp_optimise:
 	#	N gives the number of iterations to use
 		
 		sz = np.shape(self.X)
-		self.X = np.resize(self.X,(sz[0]+N,sz[1]))
-		self.Xnorm = np.resize(self.Xnorm,(sz[0]+N,sz[1]))
-		self.y = np.resize(self.y,(sz[0]+N))
-		self.yerr = np.resize(self.yerr,(sz[0]+N))
+		self.X.resize(sz[0]+N,sz[1])
+		self.Xnorm.resize(sz[0]+N,sz[1])
+		self.y.resize(sz[0]+N)
+		self.yerr.resize(sz[0]+N)
 		
 		for n in range(N):
-			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=1,acq_fn='UCB')
-			X_new = self.Xnorm_to_X(Xnorm_new)
-			y_new,yerr_new = self.fun(X_new)
-			self.X[sz[0]+n,:] = X_new
-			self.Xnorm[sz[0]+n,:] = Xnorm_new
-			self.y[sz[0]+n] = y_new
-			self.yerr[sz[0]+n] = yerr_new
+			self.Xnorm[sz[0]+n,:] = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn)
+			self.X[sz[0]+n,:] = self.Xnorm_to_X(Xnorm_new)
+			self.y[sz[0]+n],self.yerr[sz[0]+n] = self.fun(self.X[sz[0]+n,:])
+
 			self.gaussian_process.alpha = self.yerr[:sz[0]+n+1]**2
 			self.gaussian_process.fit(self.Xnorm[:sz[0]+n+1,:],self.y[:sz[0]+n+1])					
 
