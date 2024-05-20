@@ -158,7 +158,7 @@ class Gp_optimise:
 		self.X = np.pad(self.X,((0,N),(0,0)))
 		self.Xnorm = np.pad(self.Xnorm,((0,N),(0,0)))
 		self.y = np.pad(self.y,(0,N))
-		self.yerr = np.pad(self.y,(0,N))
+		self.yerr = np.pad(self.yerr,(0,N))
 		
 		for n in range(N):
 			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn)
