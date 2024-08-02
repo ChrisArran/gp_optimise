@@ -109,8 +109,7 @@ class Gp_optimise:
 			acq = y_acq + explore*sigma_acq
 			
 		elif (acq_fn=='EI'):	# Maximise expected improvement
-			y_exp = self.gaussian_process.predict(self.Xnorm)
-			y_max = np.max(y_exp)
+			y_max = np.max(self.y)
 			
 			imp = y_acq - y_max - explore
 			z = imp / sigma_acq  
