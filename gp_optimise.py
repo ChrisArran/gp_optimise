@@ -169,7 +169,7 @@ class Gp_optimise:
 			self.y[sz[0]+n] = y_new
 			self.yerr[sz[0]+n] = yerr_new
 			self.gaussian_process.alpha = self.yerr[:sz[0]+n+1]**2
-			self.gaussian_process.fit(self.Xnorm[:sz[0]+n+1,:],self.y[:sz[0]+n+1])					
+			self.gaussian_process.fit(self.Xnorm[:sz[0]+n+1,:],self.y[:sz[0]+n+1])
 
 	def predict(self,X):
 	# Give the GPR prediction for y and its error	
@@ -211,11 +211,35 @@ class Gp_optimise:
 		axmean = tuple( np.setdiff1d(range(len(self.dims)),ax) )
 		ms = [np.mean(np.reshape(a,newsz),axis=axmean) for a in arrays]
 
-		return ms
+		return ms # (y,yerr,X[:,0],X[:,1],...)
 
-	def mean_slices_plot(self,n,figsize=None,figname=None,fun=None):
+	def lineout_predict(self,ax,n,centre,fun=None):
+	# Take a lineout of the model predictions around a given point along the given axes with a resolution of n in each dimension
+	# Optionally use a different function, such as the acquisition function
+	#	ax gives the dimension to take a lineout across
+	#	n gives the resolution of the grid in each dimension
+	#	centre gives the point to take lineouts through
+	#	fun gives a different function on X that you want to calculate
+
+		centrenorm = self.X_to_Xnorm(centre.reshape(1,-1))
+		Xnormgrid = np.tile( centrenorm, (n,1) )
+		Xnormgrid[:,ax] = np.linspace(0,1,n)
+		Xgrid = self.Xnorm_to_X(Xnormgrid)
+		
+		if fun is None:
+			ygrid,yerrgrid = self.predict(Xgrid)
+		else:
+			ygrid = fun(Xgrid)
+			yerrgrid = np.zeros_like(ygrid)
+
+		ms = tuple([ygrid,yerrgrid]) + tuple(np.transpose(Xgrid)) # (y,yerr,X[:,0],X[:,1],...)
+
+		return ms # (y,yerr,X[:,0],X[:,1],...)
+
+	def mean_slices_plot(self,n,centrepoint=None,figsize=None,figname=None,fun=None):
 	# Plot a grid of projections of the mean model predictions against the data, with a resolution n in each dimension
 	# 	n gives the resolution of the grid in each dimension
+	# 	centrepoint specifies a point to plot lineouts through
 	#	figsize gives the figure size in inches
 	# 	figname gives the option of saving the figure with a given name
 	#	fun gives a different function on X that you want to calculate
@@ -246,11 +270,22 @@ class Gp_optimise:
 				plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
 				plt.errorbar(self.X[:,a],self.y,self.yerr,marker='o',linestyle='',markersize=4)
 				plt.yscale('linear')
+
+				if centrepoint is not None:
+					ms = self.lineout_predict(a,n,centrepoint,fun=fun) # lineouts arond the maxpoint
+					plt.plot(ms[a+2],ms[0],color='tab:red')
+					plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:red')
 			elif (a<b):
 				ms = self.mean_predict((a,b),n,fun=fun) # average to a 2D slice
 
 				plt.contourf(ms[a+2],ms[b+2],ms[0],levels=int(n/2))
 				plt.scatter(self.X[:,a],self.X[:,b],c=self.y,marker='o',edgecolors='black',s=20)
+
+				if centrepoint is not None:
+					ms = self.lineout_predict(a,n,centrepoint,fun=fun)
+					plt.plot(ms[a+2],ms[b+2],linestyle='--',color='tab:red')
+					ms = self.lineout_predict(b,n,centrepoint,fun=fun)
+					plt.plot(ms[a+2],ms[b+2],linestyle='--',color='tab:red')
 
 		if figname is not None:
 			plt.savefig(figname)
