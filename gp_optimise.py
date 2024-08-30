@@ -109,13 +109,14 @@ class Gp_optimise:
 			acq = y_acq + explore*sigma_acq
 			
 		elif (acq_fn=='EI'):	# Maximise expected improvement
-			y_max = np.max(self.y)
-			
-			imp = y_acq - y_max - explore
-			z = imp / sigma_acq  
-			acq = imp*norm.cdf(z) + sigma_acq*norm.pdf(z)
+			imp = y_acq - np.max(self.y)
+			z = imp / sigma_acq - explore
+			acq = (imp-explore*sigma_acq)*norm.cdf(z) + sigma_acq*norm.pdf(z)
 			acq[sigma_acq==0] = 0
 			
+#		exclude = np.logical_or(np.isnan(acq), np.isinf(acq))
+#		acq[np.logical_or(exclude,acq<0)] = 0
+#		return np.log(acq+1e-10)
 		return acq
 
 
@@ -130,7 +131,11 @@ class Gp_optimise:
 		bounds = [(0,1) for d in self.dims] # bounds are for the normalised units
 		
 		def min_acq_fn(X_acq): # make acquisition function negative to use minimise
-			return -self.acquisition_function(X_acq.reshape(1,-1),explore=explore,acq_fn=acq_fn)
+			acq = self.acquisition_function(X_acq.reshape(1,-1),explore=explore,acq_fn=acq_fn)
+			return -acq
+#			exclude = np.logical_or(np.isnan(acq), np.isinf(acq))
+#			acq[np.logical_or(exclude,acq<0)] = 0
+#			return -np.log(acq+1e-10)
 		
 		min_val = min_acq_fn(Xnorm_start[0,:])
 		min_x = Xnorm_start[0,:]
@@ -143,11 +148,12 @@ class Gp_optimise:
 				min_x = res.x
 
 		Xnorm_new = min_x.reshape(1,-1)
+		if debug: print('DEBUG: Next acquisition at: ', Xnorm_new,',',acq_fn,'=',-min_val)
 
 		return Xnorm_new
 
 			
-	def optimise(self,N,Nacq=10,explore=1,acq_fn='UCB'):
+	def optimise(self,N,Nacq=10,explore=1,acq_fn='UCB',debug=False):
 	# Iteratively improve the GPR using measurements in a place chosen by the acquisition function
 	#	N gives the number of iterations to use
 	# 	explore describes the amount the algorithm should weight exploration over optimisation
@@ -160,9 +166,11 @@ class Gp_optimise:
 		self.yerr = np.pad(self.yerr,(0,N))
 		
 		for n in range(N):
-			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn)
+			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn,debug=debug)
 			X_new = self.Xnorm_to_X(Xnorm_new)
 			y_new,yerr_new = self.fun(X_new[0,:])
+			if debug: print('\nDEBUG: Calling function at Xnorm =',Xnorm_new,', X =',X_new,', giving y = ',y_new, ' +- ',yerr_new,'\n')
+
 			self.X[sz[0]+n,:] = X_new
 			self.Xnorm[sz[0]+n,:] = Xnorm_new
 			self.y[sz[0]+n] = y_new
