@@ -35,10 +35,12 @@ class Gp_optimise:
 		Xnorm = np.zeros((N,len(self.dims)))
 		for i,d in enumerate(self.dims):
 			if d['type'] == 'uniform':
-				X[:,i] = uniform.rvs(loc=d['min'],scale=d['max']-d['min'],size=N)
+				rs = uniform.rvs(loc=0,scale=(d['max']-d['min'])/N,size=N)
+				X[:,i] = rs + np.random.choice(np.linspace(d['min'],d['max'],N+1)[0:-1],N,replace=False)
 				Xnorm[:,i] = uniform.cdf(X[:,i],loc=d['min'],scale=d['max']-d['min'])
 			elif d['type'] == 'log-uniform':
-				X[:,i] = loguniform.rvs(a=d['min'],b=d['max'],size=N)
+				rs = loguniform.rvs(a=1,b=(d['max']/d['min'])**(1/N),size=N)
+				X[:,i] = rs * np.random.choice(np.logspace(np.log10(d['min']),np.log10(d['max']),N+1)[0:-1],N,replace=False)
 				Xnorm[:,i] = loguniform.cdf(X[:,i],a=d['min'],b=d['max'])
 			elif d['type'] == 'norm':
 				X[:,i] = norm.rvs(loc=d['mean'],scale=d['std'],size=N)
