@@ -105,16 +105,21 @@ class Gp_optimise:
 	#	explore describes the amount the algorithm should weight exploration over optimisation
 	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 	
-		y_acq,sigma_acq = self.gaussian_process.predict(Xnorm_acq, return_std=True)
+		mu_acq,sigma_acq = self.gaussian_process.predict(Xnorm_acq, return_std=True)
 		
 		if (acq_fn=='UCB'):	# Maximise upper confidence bound
-			acq = y_acq + explore*sigma_acq
+			acq = mu_acq + explore*sigma_acq
 			
 		elif (acq_fn=='EI'):	# Maximise expected improvement
-			imp = y_acq - np.max(self.y)
-			z = imp / sigma_acq - explore
-			acq = (imp-explore*sigma_acq)*norm.cdf(z) + sigma_acq*norm.pdf(z)
-			acq[sigma_acq==0] = 0
+			imp = mu_acq + explore*sigma_acq - np.max(self.y)
+			z = imp / sigma_acq
+			acq = imp*norm.cdf(z) + sigma_acq*norm.pdf(z)
+
+			# Handling sigma->0:
+			pos = np.logical_and(sigma_acq==0,imp>0)
+			neg = np.logical_and(sigma_acq==0,imp<=0)
+			acq[pos] = mu_acq[pos] - np.max(self.y)
+			acq[neg] = 0
 			
 #		exclude = np.logical_or(np.isnan(acq), np.isinf(acq))
 #		acq[np.logical_or(exclude,acq<0)] = 0
@@ -143,10 +148,10 @@ class Gp_optimise:
 		min_x = Xnorm_start[0,:]
 		for x0 in Xnorm_start:
 			res = minimize(min_acq_fn, x0=x0, bounds=bounds, method='L-BFGS-B')
-			if debug: print('DEBUG: Starting from ',x0,',ending at ',res.x, ' with ',res.fun[0])
+			if debug: print('DEBUG: Starting from ',x0,',ending at ',res.x, ' with ',res.fun)
 			if (res.fun < min_val):
-				if debug: print('DEBUG: Replacing previous minimum: ', res.fun[0],'<',min_val)
-				min_val = res.fun[0]
+				if debug: print('DEBUG: Replacing previous minimum: ', res.fun,'<',min_val)
+				min_val = res.fun
 				min_x = res.x
 
 		Xnorm_new = min_x.reshape(1,-1)
