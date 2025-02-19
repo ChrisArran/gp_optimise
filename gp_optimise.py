@@ -112,8 +112,8 @@ class Gp_optimise:
 			
 		elif (acq_fn=='EI'):	# Maximise expected improvement
 			imp = y_acq - np.max(self.y)
-			z = imp / sigma_acq - explore
-			acq = (imp-explore*sigma_acq)*norm.cdf(z) + sigma_acq*norm.pdf(z)
+			z = imp / sigma_acq + explore
+			acq = (imp+explore*sigma_acq)*norm.cdf(z) + sigma_acq*norm.pdf(z)
 			acq[sigma_acq==0] = 0
 			
 #		exclude = np.logical_or(np.isnan(acq), np.isinf(acq))
