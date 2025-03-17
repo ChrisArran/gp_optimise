@@ -80,7 +80,7 @@ class Gp_optimise:
 			else:
 				raise Exception('Not a recognised distribution for input dimension %s: %s' % (d['name'],d['type']))
 		return Xnorm
-		
+
 
 	def initialise(self,Ninitial=10,n_restarts=10):
 	# Initialises a Gaussian Process Regressor
@@ -90,13 +90,13 @@ class Gp_optimise:
 		self.X,self.Xnorm = self.create_Xgrid(Ninitial)
 		self.y = np.zeros((Ninitial))
 		self.yerr = np.zeros((Ninitial))
-				
+
 		for n in range(Ninitial):
 			self.y[n],self.yerr[n] = self.fun(self.X[n,:])
-			
+
 		self.gaussian_process = GaussianProcessRegressor(kernel=self.kernel, n_restarts_optimizer=n_restarts, normalize_y=True, alpha=self.yerr**2)
 		self.gaussian_process.fit(self.Xnorm, self.y)
-		
+
 
 	def acquisition_function(self,Xnorm_acq,explore=1.0,acq_fn='UCB'):
 	# Returns the chosen acquisition function for finding the next place to sample
@@ -104,12 +104,12 @@ class Gp_optimise:
 	#	Xnorm_acq is the place to calculate the acquisition function (in normalised units)
 	#	explore describes the amount the algorithm should weight exploration over optimisation
 	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
-	
+
 		mu_acq,sigma_acq = self.gaussian_process.predict(Xnorm_acq, return_std=True)
-		
+
 		if (acq_fn=='UCB'):	# Maximise upper confidence bound
 			acq = mu_acq + explore*sigma_acq
-			
+
 		elif (acq_fn=='EI'):	# Maximise expected improvement
 			imp = mu_acq + explore*sigma_acq - np.max(self.y)
 			z = imp / sigma_acq
@@ -120,10 +120,7 @@ class Gp_optimise:
 			neg = np.logical_and(sigma_acq==0,imp<=0)
 			acq[pos] = mu_acq[pos] - np.max(self.y)
 			acq[neg] = 0
-			
-#		exclude = np.logical_or(np.isnan(acq), np.isinf(acq))
-#		acq[np.logical_or(exclude,acq<0)] = 0
-#		return np.log(acq+1e-10)
+
 		return acq
 
 
@@ -133,7 +130,7 @@ class Gp_optimise:
 	# 	explore describes the amount the algorithm should weight exploration over optimisation
 	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
 	#	debug prints some extra information on the minimisation
-	
+
 		if debug:
 			print('DEBUG: Finding next acquisition point using Nacq=%i, explore=%0.2f, acq_fn=%s' % (Nacq, explore, acq_fn))
 			X_grid = self.uniform_Xgrid(Nacq)
@@ -141,17 +138,17 @@ class Gp_optimise:
 			acq_grid = self.acquisition_function(Xnorm_grid,explore=explore,acq_fn=acq_fn)
 			imin = np.argmax(acq_grid)
 			print('DEBUG: Gridded acquisition function has maximum at ',Xnorm_grid[imin],', (', X_grid[imin],' in real space), ',acq_fn,'=',acq_grid[imin])
-		
+
 		_,Xnorm_start = self.create_Xgrid(Nacq)
 		bounds = [(0,1) for d in self.dims] # bounds are for the normalised units
-		
+
 		def min_acq_fn(X_acq): # make acquisition function negative to use minimise
 			acq = self.acquisition_function(X_acq.reshape(1,-1),explore=explore,acq_fn=acq_fn)
 			return -acq
 #			exclude = np.logical_or(np.isnan(acq), np.isinf(acq))
 #			acq[np.logical_or(exclude,acq<0)] = 0
 #			return -np.log(acq+1e-10)
-		
+
 		min_val = min_acq_fn(Xnorm_start[0,:])
 		min_x = Xnorm_start[0,:]
 		for x0 in Xnorm_start:
@@ -167,19 +164,19 @@ class Gp_optimise:
 
 		return Xnorm_new
 
-			
+
 	def optimise(self,N,Nacq=10,explore=1,acq_fn='UCB',debug=False):
 	# Iteratively improve the GPR using measurements in a place chosen by the acquisition function
 	#	N gives the number of iterations to use
 	# 	explore describes the amount the algorithm should weight exploration over optimisation
 	#	acq_fn describes what model to use (UCB for Upper Confidence Bound, EI for expected improvement)
-		
+
 		sz = np.shape(self.X)
 		self.X = np.pad(self.X,((0,N),(0,0)),mode='edge')
 		self.Xnorm = np.pad(self.Xnorm,((0,N),(0,0)),mode='edge')
 		self.y = np.pad(self.y,(0,N),mode='edge')
 		self.yerr = np.pad(self.yerr,(0,N),mode='edge')
-				
+
 		for n in range(N):
 			Xnorm_new = self.next_acquisition(Nacq=Nacq,explore=explore,acq_fn=acq_fn,debug=debug)
 			X_new = self.Xnorm_to_X(Xnorm_new)
@@ -247,7 +244,7 @@ class Gp_optimise:
 		Xnormgrid = np.tile( centrenorm, (n,1) )
 		Xnormgrid[:,ax] = np.linspace(0,1,n)
 		Xgrid = self.Xnorm_to_X(Xnormgrid)
-		
+
 		if fun is None:
 			ygrid,yerrgrid = self.predict(Xgrid)
 		else:
@@ -285,13 +282,15 @@ class Gp_optimise:
 				if (b==l-1):
 					plt.xlabel(self.dims[a]['name'])
 
-			if (a==b):		
+			if (a==b):
 				ms = self.mean_predict(a,n,fun=fun) # average to a 1D line
 
-				plt.plot(ms[a+2],ms[0],color='tab:orange')
-				plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
 				plt.errorbar(self.X[:,a],self.y,self.yerr,marker='o',linestyle='',markersize=4)
 				plt.yscale('linear')
+
+				if centrepoint is None:
+					plt.plot(ms[a+2],ms[0],color='tab:orange')
+					plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
 
 				if centrepoint is not None:
 					ms = self.lineout_predict(a,n,centrepoint,fun=fun) # lineouts arond the maxpoint
@@ -312,5 +311,5 @@ class Gp_optimise:
 		if figname is not None:
 			plt.savefig(figname)
 		return axs
-			
+
 
