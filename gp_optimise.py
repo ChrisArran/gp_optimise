@@ -290,12 +290,12 @@ class Gp_optimise:
 
 				if centrepoint is None:
 					plt.plot(ms[a+2],ms[0],color='tab:orange')
-					plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
+					plt.fill_between(ms[a+2],ms[0]-ms[1],ms[0]+ms[1],alpha=0.5,color='tab:orange')
 
 				if centrepoint is not None:
 					ms = self.lineout_predict(a,n,centrepoint,fun=fun) # lineouts arond the maxpoint
 					plt.plot(ms[a+2],ms[0],color='tab:red')
-					plt.fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:red')
+					plt.fill_between(ms[a+2],ms[0]-ms[1],ms[0]+ms[1],alpha=0.5,color='tab:red')
 			elif (a<b):
 				ms = self.mean_predict((a,b),n,fun=fun) # average to a 2D slice
 
