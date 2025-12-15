@@ -311,5 +311,34 @@ class Gp_optimise:
 		if figname is not None:
 			plt.savefig(figname)
 		return axs
+		
+	def mean_lineouts_plot(self,n,centrepoint=None,figsize=None,figname=None,fun=None):
+		fig,axs = plt.subplots(nrows=1,ncols=len(self.dims), sharey=True, figsize=figsize)
+		if centrepoint is None:
+			dist = 0
+		else:
+			normcpoint = self.X_to_Xnorm(np.tile(centrepoint,(len(self.Xnorm),1)))
+			dist = np.sqrt(np.sum((self.Xnorm-normcpoint)**2,axis=1))
+		for a,d in enumerate(self.dims):
+			markers,_,_  = axs[a].errorbar(self.X[:,a],self.y,self.yerr, marker='o', linestyle='')
+			markers.set_markerfacecolor('none')
+			markers.set_markeredgecolor('none')
+			subdist = np.sqrt(dist**2 - (self.Xnorm[:,a]-normcpoint[:,a])**2) / np.sqrt(len(self.dims)-1)
+			colors = [('tab:blue', 1-d) for d in subdist]
+			axs[a].scatter(self.X[:,a],self.y, s=20, c=colors, marker='o', linestyle='')
+			axs[a].set_yscale('linear')
+			axs[a].set_xlabel(d['name'])
 
+			if centrepoint is None:
+				ms = self.mean_predict(a,n,fun=fun) # average to a 1D line
+				axs[a].plot(ms[a+2],ms[0],color='tab:orange')
+				axs[a].fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
+
+			if centrepoint is not None:
+				ms = self.lineout_predict(a,n,centrepoint,fun=fun) # lineouts arond the maxpoint
+				axs[a].plot(ms[a+2],ms[0],color='tab:red')
+				axs[a].fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:red')
+		if figname is not None:
+			plt.savefig(figname)
+		return axs
 
