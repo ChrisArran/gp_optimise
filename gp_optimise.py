@@ -312,33 +312,112 @@ class Gp_optimise:
 			plt.savefig(figname)
 		return axs
 		
-	def mean_lineouts_plot(self,n,centrepoint=None,figsize=None,figname=None,fun=None):
-		fig,axs = plt.subplots(nrows=1,ncols=len(self.dims), sharey=True, figsize=figsize)
-		if centrepoint is None:
-			dist = 0
-		else:
-			normcpoint = self.X_to_Xnorm(np.tile(centrepoint,(len(self.Xnorm),1)))
-			dist = np.sqrt(np.sum((self.Xnorm-normcpoint)**2,axis=1))
-		for a,d in enumerate(self.dims):
-			markers,_,_  = axs[a].errorbar(self.X[:,a],self.y,self.yerr, marker='o', linestyle='')
-			markers.set_markerfacecolor('none')
-			markers.set_markeredgecolor('none')
+	def mean_plot_3d(self,n=20,figsize=None,figname=None,nlevels=11):
+	# Designed for 3 variables, plotting a 3D scatter plot along with the lineouts along each dimension
+	
+		def log_tick_formatter(val, pos=None):
+		    return f"$10^{{{val:g}}}$" 
+
+		fig,axs = plt.subplots(nrows=3,ncols=len(self.dims), sharey=True, figsize=figsize)
+		axs[0,0] = plt.subplot(3,3,(1,6),projection='3d')
+		
+		# average to 2D slices
+		ms0 = self.mean_predict((1,2),n)
+		ms1 = self.mean_predict((0,2),n)
+		ms2 = self.mean_predict((0,1),n)
+		
+		X = self.X
+		minmax = np.zeros(len(dims),2)
+		for a in range(len(dims)):
+			minmax[a,:] = [self.dims[a]['min'],self.dims[a]['min']]
+			if self.dims[a]['type'] == 'log-uniform':
+				X[:,a] = np.log10(X[:a])
+				ms0[:,2+a] = np.log10(ms0[:,2+a])
+				ms1[:,2+a] = np.log10(ms1[:,2+a])
+				ms2[:,2+a] = np.log10(ms2[:,2+a])
+				minmax[a,:] = np.log10(minmax[a,:])
+			
+		# Plot the 3D scatter plot
+		p = plt.scatter(X[:,0],X[:,1]),X[:,2],c=self.y,edgecolors= "black")
+
+		plt.set_xlim(minmax[0,:])
+		plt.set_ylim(minmax[1,:])
+		plt.set_zlim(minmax[2,:])
+
+		i_max = np.argmax(self.y)
+		X_max = X[i_max,:]
+
+		# Lines through the maximum
+		plt.plot(X_max[0]*[1,1],X_max[1]*[1,1],minmax[2,:],'r--')
+		plt.plot(X_max[0]*[1,1],minmax[1,:],X_max[2]*[1,1],'r--')
+		plt.plot(minmax[0,:],X_max[1]*[1,1],X_max[2]*[1,1],'r--')
+
+		# Projections onto the bottom z slice
+		plt.plot(X_max[0]*[1,1],minmax[1,:],minmax[2,0]*[1,1],'r:')
+		plt.plot(minmax[0,:],X_max[1]*[1,1],minmax[2,0]*[1,1],'r:')
+
+		# Projections onto the back y slice
+		plt.plot(X_max[0]*[1,1],minmax[1,1]*[1,1],minmax[2,:],'r:')
+		plt.plot(minmax[0,:],minmax[1,1]*[1,1],X_max[2]*[1,1],'r:')
+		
+		# Projections onto the left x slice
+		plt.plot(minmax[0,0]*[1,1],X_max[1]*[1,1],minmax[2,:],'r:')
+		plt.plot(minmax[0,0]*[1,1],minmax[1,:],X_max[2]*[1,1],'r:')
+		
+		# Contours projected onto the bottom, back, and left
+		lvls = np.linspace(np.min(self.y),np.max(self.y),nlevels)
+		plt.contour(ms0[0],ms0[3],ms0[4], zdir='x', offset=minmax[0,0], levels=lvls, alpha = 0.5)
+		plt.contour(ms1[2],ms1[0],ms1[4], zdir='y', offset=minmax[1,1], levels=lvls, alpha = 0.5)
+		plt.contour(ms2[2],ms2[3],ms2[0], zdir='z', offset=minmax[2,0], levels=lvls, alpha = 0.5)
+
+		# Labels and colorbar
+		plt.xlabel(dims[0]['name'], labelpad=-3)
+		plt.ylabel(dims[0]['name'], labelpad=-3)
+		plt.zlabel(dims[0]['name'], labelpad=-3)
+
+		plt.setp( ax.xaxis.get_majorticklabels(), va="bottom" )
+		plt.setp( ax.yaxis.get_majorticklabels(), va="bottom" )
+		plt.setp( ax.zaxis.get_majorticklabels(), ha="right" )
+
+		axs[0,0].yaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+		axs[0,0].yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+
+		cbar = plt.colorbar(p,location='left',fraction=0.1,shrink=0.7,anchor=(2,0.5))
+
+		# Lineout plots below
+		# Define a distance measure
+		normcpoint = self.X_to_Xnorm(np.tile(X_max,(len(self.Xnorm),1)))
+		dist = np.sqrt(np.sum((self.Xnorm-normcpoint)**2,axis=1))
+
+		for a,d in enumerate(dims):
+ 			# Wipe first two rows
+			axs[0,a].set_axis_off()
+			axs[1,a].set_axis_off()
+			
+			# Scatter with transparency by distance
 			subdist = np.sqrt(dist**2 - (self.Xnorm[:,a]-normcpoint[:,a])**2) / np.sqrt(len(self.dims)-1)
 			colors = [('tab:blue', 1-d) for d in subdist]
-			axs[a].scatter(self.X[:,a],self.y, s=20, c=colors, marker='o', linestyle='')
-			axs[a].set_yscale('linear')
-			axs[a].set_xlabel(d['name'])
+			axs[2,a].scatter(self.X[:,a],self.y, s=20, c=colors, marker='o', linestyle='')
+			
+			# Errorbars
+			markers,caps,bars  = axs[2,a].errorbar(self.X[:,a],self.y,self.yerr, marker='o', linestyle='')
+			markers.set_markerfacecolor('none')
+			markers.set_markeredgecolor('none')
+			for bar in bars:
+				bar.colors = colors
+			
+			# Model plot
+			ms = self.lineout_predict(a,n,X_max) # lineouts arond the maxpoint
+			axs[2,a].plot(ms[a+2],ms[0],color='tab:red')
+			axs[2,a].fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:red')
+			
+			axs[2,a].set_xlabel(d['name'])
+			if self.dims[a]['type'] == 'log-uniform':
+				axs[2,a].set_xscale('log')
 
-			if centrepoint is None:
-				ms = self.mean_predict(a,n,fun=fun) # average to a 1D line
-				axs[a].plot(ms[a+2],ms[0],color='tab:orange')
-				axs[a].fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:orange')
-
-			if centrepoint is not None:
-				ms = self.lineout_predict(a,n,centrepoint,fun=fun) # lineouts arond the maxpoint
-				axs[a].plot(ms[a+2],ms[0],color='tab:red')
-				axs[a].fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:red')
+		plt.tight_layout()
 		if figname is not None:
 			plt.savefig(figname)
+			
 		return axs
 
