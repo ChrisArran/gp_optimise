@@ -313,7 +313,7 @@ class Gp_optimise:
 			plt.savefig(figname)
 		return axs
 		
-	def mean_plot_3d(self,n=20,figsize=None,figname=None,nlevels=11):
+	def mean_plot_3d(self,n=20,figsize=None,figname=None,nlevels=11,clim=[None,None]):
 	# Designed for 3 variables, plotting a 3D scatter plot along with the lineouts along each dimension
 	
 		def log_tick_formatter(val, pos=None):
@@ -339,7 +339,7 @@ class Gp_optimise:
 				minmax[a,:] = np.log10(minmax[a,:])
 			
 		# Plot the 3D scatter plot
-		p = ax.scatter(X[:,0],X[:,1],X[:,2],c=self.y,edgecolors= "black")
+		p = ax.scatter(X[:,0],X[:,1],X[:,2],c=self.y,edgecolors= "black",vmin=clim[0],vmax=clim[1])
 		cbar = plt.colorbar(p,location='left',fraction=0.1,shrink=0.7,anchor=(2,0.5))
 
 		ax.set_xlim(minmax[0,:])
@@ -414,6 +414,10 @@ class Gp_optimise:
 			axs[2,a].plot(ms[a+2],ms[0],color='tab:red')
 			axs[2,a].fill_between(ms[a+2],ms[0]-2*ms[1],ms[0]+2*ms[1],alpha=0.5,color='tab:red')
 			
+			axs[2,a].set_xlim([dim['min'],dim['max']])
+			axs[2,a].minorticks_on()
+			axs[2,a].grid(True)
+			axs[2,a].grid(True, which='minor', linestyle='--')
 			axs[2,a].set_xlabel(dim['name'])
 			if dim['type'] == 'log-uniform':
 				axs[2,a].set_xscale('log')
@@ -423,5 +427,6 @@ class Gp_optimise:
 			plt.savefig(figname)
 			
 		axs[0,0] = ax
+		axs[0,1] = cbar
 		return axs
 
