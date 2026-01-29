@@ -429,4 +429,49 @@ class Gp_optimise:
 		axs[0,0] = ax
 		axs[0,1] = cbar
 		return axs
+		
+	def example_plot1d(self,nlist,a=0,N=51,explore=1.0,acq_fn='UCB',figsize=None,figname=None):
+	# Plots a series of 1D example plots after different iterations in nlist. Each is plotted over dimension a and 
+	# shows the results of the simulations, the GPR fit to them, and the acquisition function in the panel below
+		fig,axs = plt.subplots(2,len(nlist),sharex='all',sharey='row',height_ratios=[1,0.5],figsize=figsize)
+		
+		dim = self.dims[a]
+		
+		for i,n in enumerate(nlist):
+			axs[0,i].errorbar(self.X[:n,0],self.y[:n],self.yerr[:n],marker='o',linestyle='none')
+			
+			self.gaussian_process.alpha = self.yerr[:n]**2
+			self.gaussian_process.fit(self.Xnorm[:n,:], self.y[:n])
+			ms = self.mean_predict(a,N) 
+			axs[0,i].plot(ms[a+2],ms[0],color='tab:red')
+			axs[0,i].fill_between(ms[a+2],ms[0]-ms[1],ms[0]+ms[1],alpha=0.5,color='tab:red')
+			
+			Xgrid = np.transpose(np.asarray(ms[2:]))
+			Xnormgrid = self.X_to_Xnorm(Xgrid)
+			acq = self.acquisition_function(Xnormgrid,explore=explore,acq_fn=acq_fn)
+			axs[1,i].plot(Xgrid,acq,color='tab:orange')
+			imax = np.argmax(acq)
+			axs[1,i].plot(Xgrid[imax],acq[imax],'+',color='tab:orange')
+			
+			if i==0:
+#				acqmax = acq[imax]
+				axs[0,i].set_ylabel('f')
+				axs[1,i].set_ylabel(acq_fn)
+#			axs[1,i].set_ylim((0,acqmax))
+			axs[1,i].set_xlabel(dim['name'])
+			
+		for ax in axs.flatten():
+			ax.set_xlim([dim['min'],dim['max']])
+			ax.minorticks_on()
+			ax.grid(True)
+			ax.grid(True, which='minor', linestyle='--')
+			if dim['type'] == 'log-uniform':
+				ax.set_xscale('log')
+			
+		plt.tight_layout()
+		if figname is not None:
+			plt.savefig(figname)
+			
+		return axs
+			
 
