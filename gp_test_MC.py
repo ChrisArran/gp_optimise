@@ -58,7 +58,7 @@ def estimate_positrons(params): # params = [l0]
         gamma_spread = 0.1
         positron[i] = sim_positrons_angle(a0*np.sqrt(s), gamma, gamma_spread*gamma, angle=15,
                             z_offset=z_offset[i], x_offset=x_offset[i], y_offset=y_offset[i],l0=params[0],
-                            duration_fwhm = duration0*1e-15, waist_fwhm = waist0*1e-6,
+                            duration_fwhm = duration0*1e-15, waist_fwhm = waist0*1e-6, reject = 2*waist0*1e-6,
                             Nsamples=Nsamples, up_scale=up_scale, model="Quantum")
 
     mu = np.mean(positron)
@@ -110,4 +110,4 @@ for i in range(Npoints-len(gpo.y)):
     np.savetxt('%s_acq%i_%s.txt'%(var,len(gpo.y),label),np.transpose(np.vstack((X_test[:,0],acq_test2))),header=' %s\t EI' % (var))
 
 figname = '%s_%s.png' % (var,label)
-gpo.example_plot1d([3,4,5],a=0,N=51,explore=0.1,acq_fn='EI',figname=figname,figsize=(10,4))
+gpo.example_plot1d([3,4,5,10],a=0,N=51,explore=0.1,acq_fn='EI',figname=figname,figsize=(10,4))
